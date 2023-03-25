@@ -1,174 +1,268 @@
-let now_playing = document.querySelector('.now-playing');
-let track_art = document.querySelector('.track-art');
-let track_name = document.querySelector('.track-name');
-let track_artist = document.querySelector('.track-artist');
+const prevButton = document.getElementById("prev");
+const nextButton = document.getElementById("next");
+const repeatButton = document.getElementById("repeat");
+const shuffleButton = document.getElementById("shuffle");
+const audio = document.getElementById("audio");
+const songImage = document.getElementById("song-image");
+const songName = document.getElementById("song-name");
+const songArtist = document.getElementById("song-artist");
+const pauseButton = document.getElementById("pause");
+const playButton = document.getElementById("play");
+const playlistButton = document.getElementById("playlist");
+const maxDuration = document.getElementById("max-duration");
+const currentTimeRef = document.getElementById("current-time");
+const progressBar = document.getElementById("progress-bar");
+const playlistContainer = document.getElementById("playlist-container");
+const closeButton = document.getElementById("close-button");
+const playlistSongs = document.getElementById("playlist-songs");
+const currentProgress = document.getElementById("current-progress");
 
-let playpause_btn = document.querySelector('.playpause-track');
-let next_btn = document.querySelector('.next-track');
-let prev_btn = document.querySelector('.prev-track');
+//index for songs
+let index;
 
-let seek_slider = document.querySelector('.seek_slider');
-let volume_slider = document.querySelector('.volume_slider');
-let curr_time = document.querySelector('.current-time');
-let total_duration = document.querySelector('.total-duration');
-let wave = document.getElementById('wave');
-let randomIcon = document.querySelector('.fa-random');
-let curr_track = document.createElement('audio');
+//initially loop=true
+let loop = true;
 
-let track_index = 0;
-let isPlaying = false;
-let isRandom = false;
-let updateTimer;
-
-const music_list = [
-    {
-        img : 'images/stay.png',
-        name : 'Stay',
-        artist : 'The Kid LAROI, Justin Bieber',
-        music : 'music/stay.mp3'
-    },
-    {
-        img : 'images/fallingdown.jpg',
-        name : 'Falling Down',
-        artist : 'Wid Cards',
-        music : 'music/fallingdown.mp3'
-    },
-    {
-        img : 'images/faded.png',
-        name : 'Faded',
-        artist : 'Alan Walker',
-        music : 'music/Faded.mp3'
-    },
-    {
-        img : 'images/ratherbe.jpg',
-        name : 'Rather Be',
-        artist : 'Clean Bandit',
-        music : 'music/Rather Be.mp3'
-    }
+const songsList = [
+  {
+    name: "Make Me Move",
+    link: "make me move.mp3",
+    artist: "Culture Code",
+    image: "make me move.jpg",
+  },
+  {
+    name: "where-we-are",
+    link: "where-we-are.mp3",
+    artist: "Lost Sky",
+    image: "where-we-are.jpg",
+  },
+  {
+    name: "On & On",
+    link: "on-and-on.mp3",
+    artist: "Cartoon",
+    image: "on-and-on.jpg",
+  },
+  {
+    name: "unholy",
+    link: "unholy.mp3",
+    artist: "sam smith",
+    image: "unholy.jpg",
+  },
+  {
+    name: "believer",
+    link: "believer.mp3",
+    artist: "imagine dragons",
+    image: "believer.jpg",
+  },
 ];
 
-loadTrack(track_index);
+//events object
+let events = {
+  mouse: {
+    click: "click",
+  },
+  touch: {
+    click: "touchstart",
+  },
+};
 
-function loadTrack(track_index){
-    clearInterval(updateTimer);
-    reset();
+let deviceType = "";
 
-    curr_track.src = music_list[track_index].music;
-    curr_track.load();
+//Detect touch device
 
-    track_art.style.backgroundImage = "url(" + music_list[track_index].img + ")";
-    track_name.textContent = music_list[track_index].name;
-    track_artist.textContent = music_list[track_index].artist;
-    now_playing.textContent = "Playing music " + (track_index + 1) + " of " + music_list.length;
+const isTouchDevice = () => {
+  try {
+    //We try to create TouchEvent(it would fail for desktops and throw error)
+    document.createEvent("TouchEvent");
+    deviceType = "touch";
+    return true;
+  } catch (e) {
+    deviceType = "mouse";
+    return false;
+  }
+};
 
-    updateTimer = setInterval(setUpdate, 1000);
+//Format time (convert ms to seconds, minutes and add 0 id less than 10)
+const timeFormatter = (timeInput) => {
+  let minute = Math.floor(timeInput / 60);
+  minute = minute < 10 ? "0" + minute : minute;
+  let second = Math.floor(timeInput % 60);
+  second = second < 10 ? "0" + second : second;
+  return `${minute}:${second}`;
+};
 
-    curr_track.addEventListener('ended', nextTrack);
-    random_bg_color();
-}
+//set song
+const setSong = (arrayIndex) => {
+  //this extracts all the variables from the object
+  let { name, link, artist, image } = songsList[arrayIndex];
+  audio.src = link;
+  songName.innerHTML = name;
+  songArtist.innerHTML = artist;
+  songImage.src = image;
+  //display duration when metadata loads
+  audio.onloadedmetadata = () => {
+    maxDuration.innerText = timeFormatter(audio.duration);
+  };
+};
 
-function random_bg_color(){
-    let hex = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e'];
-    let a;
+//play song
+const playAudio = () => {
+  audio.play();
+  pauseButton.classList.remove("hide");
+  playButton.classList.add("hide");
+};
 
-    function populate(a){
-        for(let i=0; i<6; i++){
-            let x = Math.round(Math.random() * 14);
-            let y = hex[x];
-            a += y;
-        }
-        return a;
+//repeat button
+repeatButton.addEventListener("click", () => {
+  if (repeatButton.classList.contains("active")) {
+    repeatButton.classList.remove("active");
+    audio.loop = false;
+    console.log("repeat off");
+  } else {
+    repeatButton.classList.add("active");
+    audio.loop = true;
+    console.log("repeat on");
+  }
+});
+
+//Next song
+const nextSong = () => {
+  //if loop is true then continue in normal order
+  if (loop) {
+    if (index == songsList.length - 1) {
+      //If last song is being played
+      index = 0;
+    } else {
+      index += 1;
     }
-    let Color1 = populate('#');
-    let Color2 = populate('#');
-    var angle = 'to right';
+    setSong(index);
 
-    let gradient = 'linear-gradient(' + angle + ',' + Color1 + ', ' + Color2 + ")";
-    document.body.style.background = gradient;
-}
-function reset(){
-    curr_time.textContent = "00:00";
-    total_duration.textContent = "00:00";
-    seek_slider.value = 0;
-}
-function randomTrack(){
-    isRandom ? pauseRandom() : playRandom();
-}
-function playRandom(){
-    isRandom = true;
-    randomIcon.classList.add('randomActive');
-}
-function pauseRandom(){
-    isRandom = false;
-    randomIcon.classList.remove('randomActive');
-}
-function repeatTrack(){
-    let current_index = track_index;
-    loadTrack(current_index);
-    playTrack();
-}
-function playpauseTrack(){
-    isPlaying ? pauseTrack() : playTrack();
-}
-function playTrack(){
-    curr_track.play();
-    isPlaying = true;
-    track_art.classList.add('rotate');
-    wave.classList.add('loader');
-    playpause_btn.innerHTML = '<i class="fa fa-pause-circle fa-5x"></i>';
-}
-function pauseTrack(){
-    curr_track.pause();
-    isPlaying = false;
-    track_art.classList.remove('rotate');
-    wave.classList.remove('loader');
-    playpause_btn.innerHTML = '<i class="fa fa-play-circle fa-5x"></i>';
-}
-function nextTrack(){
-    if(track_index < music_list.length - 1 && isRandom === false){
-        track_index += 1;
-    }else if(track_index < music_list.length - 1 && isRandom === true){
-        let random_index = Number.parseInt(Math.random() * music_list.length);
-        track_index = random_index;
-    }else{
-        track_index = 0;
-    }
-    loadTrack(track_index);
-    playTrack();
-}
-function prevTrack(){
-    if(track_index > 0){
-        track_index -= 1;
-    }else{
-        track_index = music_list.length -1;
-    }
-    loadTrack(track_index);
-    playTrack();
-}
-function seekTo(){
-    let seekto = curr_track.duration * (seek_slider.value / 100);
-    curr_track.currentTime = seekto;
-}
-function setVolume(){
-    curr_track.volume = volume_slider.value / 100;
-}
-function setUpdate(){
-    let seekPosition = 0;
-    if(!isNaN(curr_track.duration)){
-        seekPosition = curr_track.currentTime * (100 / curr_track.duration);
-        seek_slider.value = seekPosition;
+    playAudio();
+  } else {
+    //else find a random index and play that song
+    let randIndex = Math.floor(Math.random() * songsList.length);
+    console.log(randIndex);
+    setSong(randIndex);
+    playAudio();
+  }
+};
 
-        let currentMinutes = Math.floor(curr_track.currentTime / 60);
-        let currentSeconds = Math.floor(curr_track.currentTime - currentMinutes * 60);
-        let durationMinutes = Math.floor(curr_track.duration / 60);
-        let durationSeconds = Math.floor(curr_track.duration - durationMinutes * 60);
+//pause song
+const pauseAudio = () => {
+  audio.pause();
+  pauseButton.classList.add("hide");
+  playButton.classList.remove("hide");
+};
 
-        if(currentSeconds < 10) {currentSeconds = "0" + currentSeconds; }
-        if(durationSeconds < 10) { durationSeconds = "0" + durationSeconds; }
-        if(currentMinutes < 10) {currentMinutes = "0" + currentMinutes; }
-        if(durationMinutes < 10) { durationMinutes = "0" + durationMinutes; }
+//previous song ( you can't go back to a randomly played song)
+const previousSong = () => {
+  if (index > 0) {
+    pauseAudio();
+    index -= 1;
+  } else {
+    //if first song is being played
+    index = songsList.length - 1;
+  }
+  setSong(index);
+  playAudio();
+};
 
-        curr_time.textContent = currentMinutes + ":" + currentSeconds;
-        total_duration.textContent = durationMinutes + ":" + durationSeconds;
-    }
-}
+//next song when current song ends
+audio.onended = () => {
+  nextSong();
+};
+
+//Shuffle songs
+shuffleButton.addEventListener("click", () => {
+  if (shuffleButton.classList.contains("active")) {
+    shuffleButton.classList.remove("active");
+    loop = true;
+    console.log("shuffle off");
+  } else {
+    shuffleButton.classList.add("active");
+    loop = false;
+    console.log("shuffle on");
+  }
+});
+
+//play button
+playButton.addEventListener("click", playAudio);
+
+//next button
+nextButton.addEventListener("click", nextSong);
+
+//pause button
+pauseButton.addEventListener("click", pauseAudio);
+
+//prev button
+prevButton.addEventListener("click", previousSong);
+
+//if user clicks on progress bar
+isTouchDevice();
+progressBar.addEventListener(events[deviceType].click, (event) => {
+  //start of progressBar
+  let coordStart = progressBar.getBoundingClientRect().left;
+  //mouse click position
+  let coordEnd = !isTouchDevice() ? event.clientX : event.touches[0].clientX;
+  let progress = (coordEnd - coordStart) / progressBar.offsetWidth;
+
+  //set width to progress
+  currentProgress.style.width = progress * 100 + "%";
+
+  //set time
+  audio.currentTime = progress * audio.duration;
+
+  //play
+  audio.play();
+  pauseButton.classList.remove("hide");
+  playButton.classList.add("hide");
+});
+
+//update progress every second
+setInterval(() => {
+  currentTimeRef.innerHTML = timeFormatter(audio.currentTime);
+  currentProgress.style.width =
+    (audio.currentTime / audio.duration.toFixed(3)) * 100 + "%";
+});
+
+//update time
+audio.addEventListener("timeupdate", () => {
+  currentTimeRef.innerText = timeFormatter(audio.currentTime);
+});
+
+//Creates playlist
+const initializePlaylist = () => {
+  for (let i in songsList) {
+    playlistSongs.innerHTML += `<li class='playlistSong' onclick='setSong(${i})'>
+            <div class="playlist-image-container">
+                <img src="${songsList[i].image}"/>
+            </div>
+            <div class="playlist-song-details">
+                <span id="playlist-song-name">
+                    ${songsList[i].name}
+                </span>
+                <span id="playlist-song-artist-album">
+                    ${songsList[i].artist}
+                </span>
+            </div>
+        </li>`;
+  }
+};
+
+//display playlist
+playlistButton.addEventListener("click", () => {
+  playlistContainer.classList.remove("hide");
+});
+
+//hide playlist
+closeButton.addEventListener("click", () => {
+  playlistContainer.classList.add("hide");
+});
+
+window.onload = () => {
+  //initially first song
+  index = 0;
+  setSong(index);
+  //create playlist
+  initializePlaylist();
+};
